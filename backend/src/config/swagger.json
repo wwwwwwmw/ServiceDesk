@@ -1,0 +1,434 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Service Desk System API Documentation",
+    "version": "1.0.0",
+    "description": "Tài liệu đặc tả toàn bộ API kết nối hệ thống Service Desk (Express + Node.js) hỗ trợ đăng nhập kép, gán việc, cập nhật tiến độ, bình luận và mở lại sự cố."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Nhập chuỗi Token JWT (không cần gõ chữ 'Bearer ', chỉ cần dán token) thu được sau khi đăng nhập thành công."
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "summary": "Đăng nhập hệ thống (Username hoặc Email)",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["usernameOrEmail", "password"],
+                "properties": {
+                  "usernameOrEmail": {
+                    "type": "string",
+                    "example": "admin",
+                    "description": "Tên đăng nhập (ví dụ: 'admin', 'user1') hoặc email (ví dụ: 'admin@company.com')"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "123456",
+                    "description": "Mật khẩu"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đăng nhập thành công, trả về token và thông tin người dùng"
+          },
+          "400": {
+            "description": "Thiếu dữ liệu đăng nhập"
+          },
+          "401": {
+            "description": "Sai tài khoản, email hoặc mật khẩu"
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "summary": "Lấy thông tin tài khoản hiện tại từ Token",
+        "responses": {
+          "200": {
+            "description": "Trả về thông tin chi tiết tài khoản"
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc Token không hợp lệ"
+          }
+        }
+      }
+    },
+    "/api/locations": {
+      "get": {
+        "summary": "Lấy danh sách các Khu vực (Locations)",
+        "responses": {
+          "200": {
+            "description": "Danh sách khu vực"
+          }
+        }
+      }
+    },
+    "/api/categories": {
+      "get": {
+        "summary": "Lấy danh sách Danh mục & Form động (Categories)",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Lọc theo loại: 'request' hoặc 'incident'",
+            "schema": {
+              "type": "string",
+              "enum": ["request", "incident"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách danh mục kèm template_json"
+          }
+        }
+      },
+      "post": {
+        "summary": "Tạo danh mục mới kèm thiết kế form động (Admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "type", "template_json"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Lỗi phần mềm ERP"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["request", "incident"],
+                    "example": "incident"
+                  },
+                  "template_json": {
+                    "type": "array",
+                    "example": [
+                      { "name": "erp_module", "label": "Phân hệ ERP lỗi", "type": "dropdown", "options": ["Kế toán", "Nhân sự", "Kho"], "required": true },
+                      { "name": "bug_desc", "label": "Chi tiết lỗi", "type": "textarea", "required": true }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo danh mục thành công"
+          },
+          "403": {
+            "description": "Không có quyền Admin"
+          }
+        }
+      }
+    },
+    "/api/employees": {
+      "get": {
+        "summary": "Lấy danh sách nhân sự kỹ thuật (Employees) để gán việc (Manager/Admin)",
+        "responses": {
+          "200": {
+            "description": "Danh sách kỹ thuật viên"
+          }
+        }
+      }
+    },
+    "/api/tickets": {
+      "get": {
+        "summary": "Lấy danh sách tickets (Tự động lọc theo quyền hạn Role của người gọi)",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "location_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Danh sách các ticket thỏa mãn"
+          }
+        }
+      },
+      "post": {
+        "summary": "Tạo mới ticket (Có hỗ trợ tạo hộ)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "category_id", "dynamic_data"],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "example": "Mất kết nối Internet phòng 402"
+                  },
+                  "requester_id": {
+                    "type": "string",
+                    "description": "ID người cần hỗ trợ (để trống nếu tự tạo cho bản thân)",
+                    "example": "u1111111-1111-1111-1111-111111111111"
+                  },
+                  "category_id": {
+                    "type": "string",
+                    "example": "c1111111-1111-1111-1111-111111111111"
+                  },
+                  "dynamic_data": {
+                    "type": "object",
+                    "example": {
+                      "room_number": "Phòng họp 402",
+                      "connection_type": "Wifi"
+                    }
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "critical"],
+                    "example": "high"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo ticket thành công"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}": {
+      "get": {
+        "summary": "Lấy chi tiết một ticket kèm form động",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chi tiết ticket"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/assign": {
+      "patch": {
+        "summary": "Phân công kỹ thuật viên xử lý và đặt độ ưu tiên (Manager/Admin)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["assignee_id"],
+                "properties": {
+                  "assignee_id": {
+                    "type": "string",
+                    "example": "e1111111-1111-1111-1111-111111111111"
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "critical"],
+                    "example": "high"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phân công thành công"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/status": {
+      "patch": {
+        "summary": "Cập nhật tiến độ xử lý ticket (Employee gán in_progress/resolved, Manager gán closed)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["in_progress", "resolved", "closed"],
+                    "example": "in_progress"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật trạng thái thành công"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/reopen": {
+      "post": {
+        "summary": "Mở lại ticket đã giải quyết xong (User người tạo hoặc Manager)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "example": "Mạng vẫn bị rớt liên tục sau khi báo resolved."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đã mở lại ticket thành công"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/comments": {
+      "post": {
+        "summary": "Gửi bình luận trao đổi trong ticket",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["content"],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "example": "Tôi đang mang linh kiện thay thế lên phòng 402."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bình luận thành công"
+          }
+        }
+      }
+    },
+    "/api/tickets/{id}/timeline": {
+      "get": {
+        "summary": "Xem toàn bộ lịch sử và bình luận gộp chung dạng timeline (Comments & Logs)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mảng timeline gộp log & comment theo thời gian"
+          }
+        }
+      }
+    }
+  }
+}
