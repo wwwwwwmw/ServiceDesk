@@ -8,4 +8,7 @@ const router = (0, express_1.Router)();
 router.post('/login', authController_1.login);
 // Route Lấy thông tin cá nhân hiện tại
 router.get('/me', authMiddleware_1.authenticateToken, authController_1.getMe);
+// Route Cập nhật thông tin cá nhân và đổi mật khẩu
+router.put('/profile', authMiddleware_1.authenticateToken, authController_1.updateProfile);
+router.put('/password', authMiddleware_1.authenticateToken, authController_1.updatePassword);
 exports.default = router;

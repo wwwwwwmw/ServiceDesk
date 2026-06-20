@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { query } from '../config/db';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import { notifyTicketInvolvedUsers } from '../services/notificationService';
 
 // 1. Thêm bình luận mới vào Ticket
 export const postComment = async (req: AuthRequest, res: Response) => {
@@ -15,7 +16,7 @@ export const postComment = async (req: AuthRequest, res: Response) => {
 
   try {
     // Kiểm tra xem Ticket có tồn tại và user có quyền không
-    const ticketResult = await query('SELECT requester_id, creator_id, assignee_id FROM tickets WHERE id = $1', [ticket_id]);
+    const ticketResult = await query('SELECT title, requester_id, creator_id, assignee_id FROM tickets WHERE id = $1', [ticket_id]);
     if (ticketResult.rowCount === 0) {
       return res.status(404).json({ error: 'Không tìm thấy ticket yêu cầu!' });
     }
@@ -42,6 +43,16 @@ export const postComment = async (req: AuthRequest, res: Response) => {
     const comment = insertResult.rows[0];
     comment.user_name = req.user?.username;
     comment.user_role = req.user?.role;
+
+    // Gửi thông báo bất đồng bộ đến các bên liên quan
+    if (userId) {
+      notifyTicketInvolvedUsers(
+        ticket_id,
+        userId,
+        'Bình luận mới trong yêu cầu',
+        `${req.user?.username} đã bình luận: "${content.substring(0, 60)}${content.length > 60 ? '...' : ''}"`
+      );
+    }
 
     return res.status(201).json({
       message: 'Gửi bình luận thành công!',

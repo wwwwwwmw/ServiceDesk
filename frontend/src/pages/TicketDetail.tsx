@@ -122,6 +122,45 @@ export const TicketDetail: React.FC = () => {
     fetchTicketDetail();
   }, [id, user]);
 
+  // Polling thảo luận và trạng thái ticket mỗi 5 giây để cập nhật realtime
+  useEffect(() => {
+    if (!id || !ticket) return;
+
+    const interval = setInterval(async () => {
+      try {
+        // 1. Fetch timeline mới
+        const timelineRes = await api.get<TimelineItem[]>(`/api/tickets/${id}/timeline`);
+        setTimeline(prev => {
+          if (JSON.stringify(prev) !== JSON.stringify(timelineRes.data)) {
+            return timelineRes.data;
+          }
+          return prev;
+        });
+
+        // 2. Fetch trạng thái và thông tin phân công mới của ticket
+        const ticketRes = await api.get<TicketDetailData>(`/api/tickets/${id}`);
+        setTicket(prev => {
+          if (prev && (
+            prev.status !== ticketRes.data.status || 
+            prev.assignee_id !== ticketRes.data.assignee_id || 
+            prev.priority !== ticketRes.data.priority
+          )) {
+            setSelectedPriority(ticketRes.data.priority);
+            if (ticketRes.data.assignee_id) {
+              setSelectedAssignee(ticketRes.data.assignee_id);
+            }
+            return ticketRes.data;
+          }
+          return prev;
+        });
+      } catch (err) {
+        console.error('Lỗi tự động cập nhật thảo luận/trạng thái:', err);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [id, ticket]);
+
   // Cuộn timeline xuống cuối khi có tin nhắn mới
   useEffect(() => {
     timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -244,9 +283,9 @@ export const TicketDetail: React.FC = () => {
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <span className="text-xs text-slate-500 light:text-slate-400">Quay lại Dashboard</span>
+          <span className="text-xs text-slate-500 light:text-slate-600">Quay lại Dashboard</span>
         </div>
-        <span className="text-xs text-slate-500 light:text-slate-400">Mã ticket: <strong className="text-slate-300 light:text-slate-700 font-mono">{ticket.id.substring(0,8)}...</strong></span>
+        <span className="text-xs text-slate-500 light:text-slate-600">Mã ticket: <strong className="text-slate-300 light:text-slate-700 font-mono">{ticket.id.substring(0,8)}...</strong></span>
       </div>
 
       {/* Main Grid: Left Panel Info & Right Panel Timeline */}
@@ -268,7 +307,7 @@ export const TicketDetail: React.FC = () => {
             </div>
 
             {/* Meta details list */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-b border-slate-850 light:border-slate-200 py-4 text-xs text-slate-400 light:text-slate-500">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-b border-slate-850 light:border-slate-200 py-4 text-xs text-slate-400 light:text-slate-600">
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <UserIcon className="w-4 h-4 text-slate-500" />
@@ -309,7 +348,7 @@ export const TicketDetail: React.FC = () => {
                   const val = ticket.dynamic_data[field.name];
                   return (
                     <div key={field.name} className="space-y-1">
-                      <span className="text-[10px] text-slate-500 light:text-slate-400 font-bold block">{field.label}:</span>
+                      <span className="text-[10px] text-slate-400 light:text-slate-600 font-bold block">{field.label}:</span>
                       <span className="text-xs text-slate-200 light:text-slate-800 font-semibold block">
                         {val !== undefined && val !== '' ? String(val) : <em className="text-slate-600 light:text-slate-450">Trống</em>}
                       </span>
@@ -332,7 +371,7 @@ export const TicketDetail: React.FC = () => {
                     return (
                       <div 
                         key={file.id} 
-                        className="flex items-center justify-between p-3 bg-slate-950/40 light:bg-slate-50 border border-slate-850 light:border-slate-200 rounded-xl hover:border-slate-800 light:hover:border-slate-350 transition"
+                        className="flex items-center justify-between p-3 bg-slate-950/40 light:bg-slate-50 border border-slate-850 light:border-slate-200 rounded-xl hover:border-slate-800 light:hover:border-slate-300 transition"
                       >
                         <div className="flex items-center min-w-0 pr-3 space-x-3">
                           {isImage ? (
@@ -343,12 +382,12 @@ export const TicketDetail: React.FC = () => {
                             />
                           ) : (
                             <div className="w-10 h-10 bg-slate-900 light:bg-slate-200 flex items-center justify-center rounded-lg border border-slate-850 light:border-slate-100 shrink-0">
-                              <Paperclip className="w-5 h-5 text-slate-500 light:text-slate-400" />
+                              <Paperclip className="w-5 h-5 text-slate-500 light:text-slate-600" />
                             </div>
                           )}
                           <div className="min-w-0">
                             <p className="text-xs font-semibold text-slate-200 light:text-slate-850 truncate m-0">{file.file_name}</p>
-                            <p className="text-[10px] text-slate-500 light:text-slate-400 m-0 uppercase tracking-wider">{file.file_type.split('/')[1] || 'file'}</p>
+                            <p className="text-[10px] text-slate-500 light:text-slate-600 m-0 uppercase tracking-wider">{file.file_type.split('/')[1] || 'file'}</p>
                           </div>
                         </div>
                         <button
@@ -375,7 +414,7 @@ export const TicketDetail: React.FC = () => {
               {(user.role === 'manager' || user.role === 'admin') && 
                (ticket.status === 'open' || ticket.status === 'reopened') && (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-400">Chọn kỹ thuật viên phù hợp trực khu vực để gán xử lý:</p>
+                  <p className="text-xs text-slate-400 light:text-slate-600">Chọn kỹ thuật viên phù hợp trực khu vực để gán xử lý:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <select
                       value={selectedAssignee}
@@ -418,7 +457,7 @@ export const TicketDetail: React.FC = () => {
               {/* 2. Employee: Đổi trạng thái xử lý */}
               {user.role === 'employee' && ticket.assignee_id === user.id && (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-400">Bạn là người được gán xử lý sự cố này. Cập nhật tiến độ:</p>
+                  <p className="text-xs text-slate-400 light:text-slate-600">Bạn là người được gán xử lý sự cố này. Cập nhật tiến độ:</p>
                   <div className="flex gap-4">
                     {ticket.status === 'assigned' && (
                       <button
@@ -447,7 +486,7 @@ export const TicketDetail: React.FC = () => {
               {/* 3. Manager / Admin: Nghiệm thu & đóng Case (khi đã resolved) */}
               {(user.role === 'manager' || user.role === 'admin') && ticket.status === 'resolved' && (
                 <div className="space-y-4">
-                  <p className="text-xs text-slate-400">Kỹ thuật viên đã báo hoàn thành sự cố. Bạn cần phê duyệt kết quả:</p>
+                  <p className="text-xs text-slate-400 light:text-slate-600">Kỹ thuật viên đã báo hoàn thành sự cố. Bạn cần phê duyệt kết quả:</p>
                   <div className="flex gap-4">
                     <button
                       onClick={() => handleUpdateStatus('closed')}
@@ -472,7 +511,7 @@ export const TicketDetail: React.FC = () => {
               {/* 4. User: Nghiệm thu (khi đã resolved) */}
               {user.role === 'user' && ticket.status === 'resolved' && (
                 <div className="space-y-4">
-                  <p className="text-xs text-slate-400 font-medium text-emerald-400">
+                  <p className="text-xs text-slate-400 light:text-slate-600 font-medium text-emerald-400 light:text-emerald-600">
                     Sự cố của bạn đã được giải quyết. Nếu bạn thấy sự cố vẫn còn, bạn có quyền mở lại ticket:
                   </p>
                   <button
@@ -554,8 +593,8 @@ export const TicketDetail: React.FC = () => {
                   className={`flex flex-col ${isCurrentUserComment ? 'items-end' : 'items-start'}`}
                 >
                   <div className="flex items-center space-x-1 mb-1">
-                    <span className="text-[10px] font-bold text-slate-400 light:text-slate-500">{item.user_name}</span>
-                    <span className="text-[9px] uppercase px-1 rounded bg-slate-800 light:bg-slate-100 text-slate-500 light:text-slate-450 scale-90">
+                    <span className="text-[10px] font-bold text-slate-400 light:text-slate-600">{item.user_name}</span>
+                    <span className="text-[9px] uppercase px-1 rounded bg-slate-800 light:bg-slate-100 text-slate-500 light:text-slate-600 scale-90">
                       {item.user_role}
                     </span>
                   </div>
@@ -566,7 +605,7 @@ export const TicketDetail: React.FC = () => {
                   }`}>
                     {item.content}
                   </div>
-                  <span className="text-[9px] text-slate-600 light:text-slate-400 mt-1">
+                  <span className="text-[9px] text-slate-600 light:text-slate-550 mt-1">
                     {new Date(item.created_at).toLocaleTimeString()}
                   </span>
                 </div>

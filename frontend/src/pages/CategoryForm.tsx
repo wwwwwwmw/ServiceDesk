@@ -18,6 +18,7 @@ interface FormField {
   required: boolean;
   placeholder?: string;
   options?: string[];
+  _rawOptions?: string;
 }
 
 interface Category {
@@ -142,10 +143,15 @@ export const CategoryForm: React.FC = () => {
 
     setFormLoading(true);
     try {
+      const cleanedFields = fields.map(f => {
+        const { _rawOptions, ...rest } = f;
+        return rest;
+      });
+
       const payload = {
         name: name.trim(),
         type,
-        template_json: fields
+        template_json: cleanedFields
       };
 
       if (!isEdit) {
@@ -221,7 +227,7 @@ export const CategoryForm: React.FC = () => {
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 light:text-slate-500 uppercase tracking-wider">Tên danh mục</label>
+                  <label className="text-[10px] font-bold text-slate-400 light:text-slate-600 uppercase tracking-wider">Tên danh mục</label>
                   <input
                     type="text"
                     value={name}
@@ -233,7 +239,7 @@ export const CategoryForm: React.FC = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-400 light:text-slate-500 uppercase tracking-wider">Phân loại biểu mẫu</label>
+                  <label className="text-[10px] font-bold text-slate-400 light:text-slate-600 uppercase tracking-wider">Phân loại biểu mẫu</label>
                   <select
                     value={type}
                     onChange={(e) => setType(e.target.value as any)}
@@ -283,7 +289,7 @@ export const CategoryForm: React.FC = () => {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Nhãn hiển thị (Label)</label>
+                            <label className="text-[9px] text-slate-400 light:text-slate-600 font-bold uppercase tracking-wide">Nhãn hiển thị (Label)</label>
                             <input
                               type="text"
                               value={f.label}
@@ -294,7 +300,7 @@ export const CategoryForm: React.FC = () => {
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Mã trường (Name - viết liền không dấu)</label>
+                            <label className="text-[9px] text-slate-400 light:text-slate-600 font-bold uppercase tracking-wide">Mã trường (Name - viết liền không dấu)</label>
                             <input
                               type="text"
                               value={f.name}
@@ -307,10 +313,15 @@ export const CategoryForm: React.FC = () => {
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                           <div className="space-y-1">
-                            <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Kiểu nhập</label>
+                            <label className="text-[9px] text-slate-400 light:text-slate-600 font-bold uppercase tracking-wide">Kiểu nhập</label>
                             <select
                               value={f.type}
-                              onChange={(e) => handleUpdateField(index, { ...f, type: e.target.value as any, options: e.target.value === 'dropdown' ? [] : undefined })}
+                              onChange={(e) => handleUpdateField(index, { 
+                                ...f, 
+                                type: e.target.value as any, 
+                                options: e.target.value === 'dropdown' ? [] : undefined,
+                                _rawOptions: undefined
+                              })}
                               className="w-full px-3 py-1.5 bg-slate-950 light:bg-white text-xs rounded-lg border border-slate-850 light:border-slate-200 text-white light:text-slate-900 outline-none cursor-pointer"
                             >
                               <option value="text">Dòng văn bản ngắn (Text)</option>
@@ -322,21 +333,25 @@ export const CategoryForm: React.FC = () => {
                           <div className="space-y-1 sm:col-span-2">
                             {f.type === 'dropdown' ? (
                               <>
-                                <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Các tùy chọn (cách nhau bằng dấu phẩy)</label>
+                                <label className="text-[9px] text-slate-400 light:text-slate-600 font-bold uppercase tracking-wide">Các tùy chọn (cách nhau bằng dấu phẩy)</label>
                                 <input
                                   type="text"
-                                  value={f.options?.join(', ') || ''}
-                                  onChange={(e) => handleUpdateField(index, { 
-                                    ...f, 
-                                    options: e.target.value.split(',').map(item => item.trim()).filter(Boolean) 
-                                  })}
+                                  value={f._rawOptions !== undefined ? f._rawOptions : (f.options?.join(', ') || '')}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    handleUpdateField(index, { 
+                                      ...f, 
+                                      _rawOptions: val,
+                                      options: val.split(',').map(item => item.trim()).filter(Boolean) 
+                                    });
+                                  }}
                                   className="w-full px-3 py-1.5 bg-slate-950 light:bg-white text-xs rounded-lg border border-slate-850 light:border-slate-200 text-white light:text-slate-900 outline-none focus:border-sky-500 font-medium"
                                   placeholder="Ví dụ: Đỏ, Xanh, Vàng"
                                 />
                               </>
                             ) : (
                               <>
-                                <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">Chữ gợi ý mờ (Placeholder)</label>
+                                <label className="text-[9px] text-slate-400 light:text-slate-600 font-bold uppercase tracking-wide">Chữ gợi ý mờ (Placeholder)</label>
                                 <input
                                   type="text"
                                   value={f.placeholder || ''}
@@ -406,7 +421,7 @@ export const CategoryForm: React.FC = () => {
 
             {/* Standard inputs display */}
             <div className="space-y-1.5">
-              <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Tiêu đề yêu cầu / Sự cố *</label>
+              <label className="text-[9px] text-slate-400 light:text-slate-600 font-bold uppercase tracking-wider">Tiêu đề yêu cầu / Sự cố *</label>
               <input
                 type="text"
                 disabled

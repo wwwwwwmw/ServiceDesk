@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.findUserByEmail = exports.getUsers = exports.getEmployees = exports.reopenTicket = exports.updateTicketStatus = exports.assignTicket = exports.getTicketDetail = exports.getTickets = exports.createTicket = void 0;
 const db_1 = __importStar(require("../config/db"));
+const notificationService_1 = require("../services/notificationService");
 // 1. Tạo mới Ticket (Tạo cho bản thân hoặc tạo hộ)
 const createTicket = async (req, res) => {
     const { title, requester_id, requester_email, category_id, location_id: custom_location_id, dynamic_data, priority, attachments } = req.body;
@@ -108,6 +109,12 @@ const createTicket = async (req, res) => {
             }
         }
         await client.query('COMMIT');
+        // Gửi thông báo bất đồng bộ
+        (0, notificationService_1.createNotification)(ticket.requester_id, 'Khởi tạo yêu cầu thành công', `Yêu cầu "${ticket.title}" của bạn đã được khởi tạo thành công ở trạng thái OPEN. Mức ưu tiên: ${ticket.priority}.`, ticket.id);
+        if (ticket.creator_id !== ticket.requester_id) {
+            (0, notificationService_1.createNotification)(ticket.creator_id, 'Khởi tạo yêu cầu thành công (Tạo hộ)', `Bạn đã tạo hộ thành công yêu cầu "${ticket.title}" cho người dùng khác.`, ticket.id);
+        }
+        (0, notificationService_1.notifyManagersAndAdmins)('Yêu cầu mới cần phân công', `Yêu cầu mới "${ticket.title}" được tạo bởi ${req.user?.username}. Vui lòng phân công xử lý.`, ticket.id);
         return res.status(201).json({
             message: 'Gửi yêu cầu thành công!',
             ticket
@@ -245,17 +252,24 @@ const assignTicket = async (req, res) => {
             updateSql += `, priority = $3`;
             params.push(priority);
         }
-        updateSql += ` WHERE id = $2 RETURNING id, status, priority`;
+        updateSql += ` WHERE id = $2 RETURNING id, status, priority, title, requester_id, creator_id`;
         const ticketResult = await (0, db_1.query)(updateSql, params);
         if (ticketResult.rowCount === 0) {
             return res.status(404).json({ error: 'Không tìm thấy ticket yêu cầu hoặc không gán được!' });
         }
+        const updatedTicket = ticketResult.rows[0];
         // Ghi nhận log hoạt động
         const actionText = `Đã phân công cho nhân viên: ${employeeUsername}${priority ? ` (Mức ưu tiên: ${priority})` : ''}`;
         await (0, db_1.query)('INSERT INTO ticket_logs (ticket_id, user_id, action) VALUES ($1, $2, $3)', [id, managerId, actionText]);
+        // Gửi thông báo bất đồng bộ
+        (0, notificationService_1.createNotification)(assignee_id, 'Bạn có nhiệm vụ mới được gán', `Bạn đã được phân công xử lý yêu cầu "${updatedTicket.title}". Mức độ ưu tiên: ${updatedTicket.priority}.`, id);
+        (0, notificationService_1.createNotification)(updatedTicket.requester_id, 'Yêu cầu đã được phân công xử lý', `Yêu cầu "${updatedTicket.title}" của bạn đã được gán cho kỹ thuật viên: ${employeeUsername}.`, id);
+        if (updatedTicket.creator_id !== updatedTicket.requester_id) {
+            (0, notificationService_1.createNotification)(updatedTicket.creator_id, 'Yêu cầu đã được phân công xử lý (Tạo hộ)', `Yêu cầu "${updatedTicket.title}" (bạn tạo hộ) đã được gán cho kỹ thuật viên: ${employeeUsername}.`, id);
+        }
         return res.status(200).json({
             message: 'Giao việc thành công!',
-            ticket: ticketResult.rows[0]
+            ticket: updatedTicket
         });
     }
     catch (error) {
@@ -308,14 +322,31 @@ const updateTicketStatus = async (req, res) => {
         else if (status === 'closed') {
             updateSql += ', closed_at = CURRENT_TIMESTAMP';
         }
-        updateSql += ' WHERE id = $2 RETURNING id, status, resolved_at, closed_at';
+        updateSql += ' WHERE id = $2 RETURNING id, status, resolved_at, closed_at, title, requester_id, creator_id, assignee_id';
         const updatedResult = await (0, db_1.query)(updateSql, params);
+        const updatedTicket = updatedResult.rows[0];
         // Ghi nhận log
         const logAction = `Đã cập nhật trạng thái từ [${ticket.status.toUpperCase()}] sang [${status.toUpperCase()}]`;
         await (0, db_1.query)('INSERT INTO ticket_logs (ticket_id, user_id, action) VALUES ($1, $2, $3)', [id, userId, logAction]);
+        // Gửi thông báo bất đồng bộ
+        const statusLabels = {
+            in_progress: 'Đang xử lý',
+            resolved: 'Đã giải quyết (Chờ duyệt)',
+            closed: 'Đã đóng hoàn tất'
+        };
+        const statusText = statusLabels[status] || status;
+        const titleText = `Cập nhật trạng thái yêu cầu`;
+        const contentText = `Yêu cầu "${updatedTicket.title}" đã được chuyển trạng thái sang: "${statusText}".`;
+        (0, notificationService_1.createNotification)(updatedTicket.requester_id, titleText, contentText, id);
+        if (updatedTicket.creator_id !== updatedTicket.requester_id) {
+            (0, notificationService_1.createNotification)(updatedTicket.creator_id, titleText, contentText, id);
+        }
+        if (status === 'closed' && updatedTicket.assignee_id && updatedTicket.assignee_id !== userId) {
+            (0, notificationService_1.createNotification)(updatedTicket.assignee_id, 'Yêu cầu của bạn xử lý đã đóng', `Yêu cầu "${updatedTicket.title}" bạn xử lý đã được phê duyệt và đóng lại bởi quản lý.`, id);
+        }
         return res.status(200).json({
             message: 'Cập nhật trạng thái thành công!',
-            ticket: updatedResult.rows[0]
+            ticket: updatedTicket
         });
     }
     catch (error) {
@@ -354,15 +385,21 @@ const reopenTicket = async (req, res) => {
         const updatedResult = await (0, db_1.query)(`UPDATE tickets 
        SET status = 'reopened', resolved_at = NULL, updated_at = CURRENT_TIMESTAMP 
        WHERE id = $1 
-       RETURNING id, status, resolved_at`, [id]);
+       RETURNING id, status, resolved_at, title, requester_id, creator_id, assignee_id`, [id]);
+        const reopenedTicket = updatedResult.rows[0];
         // Tự động chèn bình luận về lý do mở lại
         const commentContent = `[Yêu cầu mở lại] Lý do: ${reason}`;
         await (0, db_1.query)('INSERT INTO ticket_comments (ticket_id, user_id, content) VALUES ($1, $2, $3)', [id, userId, commentContent]);
         // Ghi nhận log hoạt động
         await (0, db_1.query)('INSERT INTO ticket_logs (ticket_id, user_id, action) VALUES ($1, $2, $3)', [id, userId, `Mở lại ticket (Reopen) với lý do: ${reason}`]);
+        // Gửi thông báo bất đồng bộ
+        if (reopenedTicket.assignee_id) {
+            (0, notificationService_1.createNotification)(reopenedTicket.assignee_id, 'Yêu cầu bị mở lại', `Yêu cầu "${reopenedTicket.title}" đã bị mở lại bởi ${req.user?.username}. Lý do: ${reason}`, id);
+        }
+        (0, notificationService_1.notifyManagersAndAdmins)('Yêu cầu đã được mở lại', `Yêu cầu "${reopenedTicket.title}" đã được mở lại bởi ${req.user?.username}. Lý do: ${reason}`, id);
         return res.status(200).json({
             message: 'Đã mở lại ticket thành công!',
-            ticket: updatedResult.rows[0]
+            ticket: reopenedTicket
         });
     }
     catch (error) {

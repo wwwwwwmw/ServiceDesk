@@ -12,6 +12,7 @@ import categoryRoutes from './routes/categoryRoutes';
 import ticketRoutes from './routes/ticketRoutes';
 import commentRoutes from './routes/commentRoutes';
 import adminRoutes from './routes/adminRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 
 // Tải cấu hình biến môi trường
 dotenv.config();
@@ -31,6 +32,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', categoryRoutes); // Phục vụ /api/locations và /api/categories
 app.use('/api', ticketRoutes);   // Phục vụ /api/tickets, /api/employees...
 app.use('/api', commentRoutes);  // Phục vụ /api/tickets/:id/comments và /api/tickets/:id/timeline
+app.use('/api', notificationRoutes); // Phục vụ các API liên quan đến thông báo
 app.use('/api/admin', adminRoutes); // Phục vụ các API quản lý CRUD của Admin
 
 // API Health Check

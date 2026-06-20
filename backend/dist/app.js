@@ -14,6 +14,8 @@ const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const categoryRoutes_1 = __importDefault(require("./routes/categoryRoutes"));
 const ticketRoutes_1 = __importDefault(require("./routes/ticketRoutes"));
 const commentRoutes_1 = __importDefault(require("./routes/commentRoutes"));
+const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
+const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
 // Tải cấu hình biến môi trường
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -28,6 +30,8 @@ app.use('/api/auth', authRoutes_1.default);
 app.use('/api', categoryRoutes_1.default); // Phục vụ /api/locations và /api/categories
 app.use('/api', ticketRoutes_1.default); // Phục vụ /api/tickets, /api/employees...
 app.use('/api', commentRoutes_1.default); // Phục vụ /api/tickets/:id/comments và /api/tickets/:id/timeline
+app.use('/api', notificationRoutes_1.default); // Phục vụ các API liên quan đến thông báo
+app.use('/api/admin', adminRoutes_1.default); // Phục vụ các API quản lý CRUD của Admin
 // API Health Check
 app.get('/api/health', (req, res) => {
     res.status(200).json({

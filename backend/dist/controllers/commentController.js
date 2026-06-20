@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getTimeline = exports.postComment = void 0;
 const db_1 = require("../config/db");
+const notificationService_1 = require("../services/notificationService");
 // 1. Thêm bình luận mới vào Ticket
 const postComment = async (req, res) => {
     const { id: ticket_id } = req.params; // ticket_id từ URL parameter
@@ -13,7 +14,7 @@ const postComment = async (req, res) => {
     }
     try {
         // Kiểm tra xem Ticket có tồn tại và user có quyền không
-        const ticketResult = await (0, db_1.query)('SELECT requester_id, creator_id, assignee_id FROM tickets WHERE id = $1', [ticket_id]);
+        const ticketResult = await (0, db_1.query)('SELECT title, requester_id, creator_id, assignee_id FROM tickets WHERE id = $1', [ticket_id]);
         if (ticketResult.rowCount === 0) {
             return res.status(404).json({ error: 'Không tìm thấy ticket yêu cầu!' });
         }
@@ -34,6 +35,10 @@ const postComment = async (req, res) => {
         const comment = insertResult.rows[0];
         comment.user_name = req.user?.username;
         comment.user_role = req.user?.role;
+        // Gửi thông báo bất đồng bộ đến các bên liên quan
+        if (userId) {
+            (0, notificationService_1.notifyTicketInvolvedUsers)(ticket_id, userId, 'Bình luận mới trong yêu cầu', `${req.user?.username} đã bình luận: "${content.substring(0, 60)}${content.length > 60 ? '...' : ''}"`);
+        }
         return res.status(201).json({
             message: 'Gửi bình luận thành công!',
             comment

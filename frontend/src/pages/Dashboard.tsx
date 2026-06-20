@@ -264,7 +264,7 @@ export const Dashboard: React.FC = () => {
             placeholder="Tìm theo tiêu đề, người yêu cầu..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-950/60 light:bg-white border border-slate-850 light:border-slate-250 outline-none text-slate-200 light:text-slate-800 placeholder-slate-600 light:placeholder-slate-450 text-xs focus:border-sky-500/50 transition-colors duration-200"
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-950/60 light:bg-white border border-slate-800 light:border-slate-200 outline-none text-slate-200 light:text-slate-800 placeholder-slate-600 light:placeholder-slate-400 text-xs focus:border-sky-500/50 transition-colors duration-200"
           />
         </div>
 
@@ -277,7 +277,7 @@ export const Dashboard: React.FC = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-slate-950/80 light:bg-white border border-slate-850 light:border-slate-250 rounded-xl px-3 py-1.5 text-xs text-slate-300 light:text-slate-800 outline-none focus:border-sky-500/50 cursor-pointer"
+              className="bg-slate-950/80 light:bg-white border border-slate-800 light:border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-300 light:text-slate-800 outline-none focus:border-sky-500/50 cursor-pointer"
             >
               <option value="">Tất cả trạng thái</option>
               <option value="open">Mới tạo (Open)</option>
@@ -294,7 +294,7 @@ export const Dashboard: React.FC = () => {
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-slate-950/80 light:bg-white border border-slate-850 light:border-slate-250 rounded-xl px-3 py-1.5 text-xs text-slate-300 light:text-slate-800 outline-none focus:border-sky-500/50 cursor-pointer"
+              className="bg-slate-950/80 light:bg-white border border-slate-800 light:border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-300 light:text-slate-800 outline-none focus:border-sky-500/50 cursor-pointer"
             >
               <option value="">Tất cả khu vực</option>
               {locations.map(loc => (
@@ -332,16 +332,16 @@ export const Dashboard: React.FC = () => {
                   <th className="py-4 px-6 text-right">Chi tiết</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850/80 light:divide-slate-200 text-xs text-slate-300 light:text-slate-700">
+              <tbody className="divide-y divide-slate-800/80 light:divide-slate-200 text-xs text-slate-300 light:text-slate-700">
                 {filteredTickets.map((ticket) => (
                   <tr 
                     key={ticket.id}
-                    className="hover:bg-slate-850/20 light:hover:bg-slate-100 transition cursor-pointer"
+                    className="hover:bg-slate-800/20 light:hover:bg-slate-100 transition cursor-pointer"
                     onClick={() => navigate(`/ticket/${ticket.id}`)}
                   >
                     <td className="py-4 px-6 font-medium text-slate-100 light:text-slate-800 max-w-xs truncate">
-                      <div className="font-semibold text-slate-200 light:text-slate-850">{ticket.title}</div>
-                      <div className="text-[10px] text-slate-500 light:text-slate-450 flex items-center mt-1">
+                      <div className="font-semibold text-slate-200 light:text-black">{ticket.title}</div>
+                      <div className="text-[10px] text-slate-500 light:text-slate-600 flex items-center mt-1">
                         <UserIcon className="w-3 h-3 mr-1" />
                         <span>Yêu cầu bởi: {ticket.requester_name}</span>
                         <span className="mx-1.5">•</span>
@@ -354,7 +354,7 @@ export const Dashboard: React.FC = () => {
                         {ticket.location_name}
                       </span>
                     </td>
-                    <td className="py-4 px-4 whitespace-nowrap text-slate-400 light:text-slate-650">
+                    <td className="py-4 px-4 whitespace-nowrap text-slate-400 light:text-slate-600">
                       {ticket.category_name}
                     </td>
                     <td className="py-4 px-4 whitespace-nowrap">
@@ -363,9 +363,9 @@ export const Dashboard: React.FC = () => {
                     <td className="py-4 px-4 whitespace-nowrap">
                       {renderStatusBadge(ticket.status)}
                     </td>
-                    <td className="py-4 px-4 whitespace-nowrap text-slate-400 light:text-slate-650">
+                    <td className="py-4 px-4 whitespace-nowrap text-slate-400 light:text-slate-600">
                       {ticket.assignee_name || (
-                        <span className="text-[10px] italic text-slate-600 light:text-slate-400">Chưa chỉ định</span>
+                        <span className="text-[10px] italic text-slate-600 light:text-slate-500">Chưa chỉ định</span>
                       )}
                     </td>
                     {user.role === 'manager' && (
@@ -379,7 +379,7 @@ export const Dashboard: React.FC = () => {
                                defaultValue=""
                               disabled={actionLoading === ticket.id}
                               onChange={(e) => handleQuickAssign(ticket.id, e.target.value)}
-                              className="w-full bg-slate-950/80 light:bg-white border border-slate-800 light:border-slate-250 rounded-lg py-1 px-2 text-[11px] text-slate-300 light:text-slate-850 outline-none focus:border-sky-500/50 transition disabled:opacity-50 cursor-pointer"
+                              className="w-full bg-slate-950/80 light:bg-white border border-slate-800 light:border-slate-200 rounded-lg py-1 px-2 text-[11px] text-slate-300 light:text-slate-800 outline-none focus:border-sky-500/50 transition disabled:opacity-50 cursor-pointer"
                             >
                               <option value="">Giao việc...</option>
                               {employees
