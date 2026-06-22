@@ -386,7 +386,7 @@ export const TicketDetail: React.FC = () => {
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-200 light:text-slate-850 truncate m-0">{file.file_name}</p>
+                            <p className="text-xs font-semibold text-slate-200 light:text-slate-800 truncate m-0">{file.file_name}</p>
                             <p className="text-[10px] text-slate-500 light:text-slate-600 m-0 uppercase tracking-wider">{file.file_type.split('/')[1] || 'file'}</p>
                           </div>
                         </div>
@@ -419,7 +419,7 @@ export const TicketDetail: React.FC = () => {
                     <select
                       value={selectedAssignee}
                       onChange={(e) => setSelectedAssignee(e.target.value)}
-                      className="bg-slate-950 light:bg-white border border-slate-800 light:border-slate-250 rounded-lg p-2.5 text-xs text-slate-300 light:text-slate-850 outline-none cursor-pointer"
+                      className="bg-slate-950 light:bg-white border border-slate-800 light:border-slate-250 rounded-lg p-2.5 text-xs text-slate-300 light:text-black outline-none cursor-pointer"
                     >
                       <option value="">-- Chọn kỹ thuật viên --</option>
                       {/* Lọc các nhân viên cùng khu vực trước để dễ chọn */}
@@ -436,7 +436,7 @@ export const TicketDetail: React.FC = () => {
                     <select
                       value={selectedPriority}
                       onChange={(e) => setSelectedPriority(e.target.value)}
-                      className="bg-slate-950 light:bg-white border border-slate-800 light:border-slate-250 rounded-lg p-2.5 text-xs text-slate-300 light:text-slate-855 outline-none cursor-pointer"
+                      className="bg-slate-950 light:bg-white border border-slate-800 light:border-slate-250 rounded-lg p-2.5 text-xs text-slate-300 light:text-black outline-none cursor-pointer"
                     >
                       <option value="low">Độ ưu tiên: Thấp</option>
                       <option value="medium">Độ ưu tiên: Thường</option>
@@ -535,7 +535,7 @@ export const TicketDetail: React.FC = () => {
                       value={reopenReason}
                       onChange={(e) => setReopenReason(e.target.value)}
                       placeholder="Nêu rõ lý do (ví dụ: máy in vẫn kẹt giấy, mạng vẫn chập chờn...)"
-                      className="w-full bg-slate-900 light:bg-white border border-slate-800 light:border-slate-250 rounded-lg p-2 text-xs text-slate-200 light:text-slate-850 outline-none focus:border-rose-500/40"
+                      className="w-full bg-slate-900 light:bg-white border border-slate-800 light:border-slate-250 rounded-lg p-2 text-xs text-slate-200 light:text-black outline-none focus:border-rose-500/40"
                       required
                     />
                   </div>

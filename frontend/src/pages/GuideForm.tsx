@@ -268,7 +268,7 @@ export const GuideForm: React.FC = () => {
 
             {/* Mock Steps */}
             <div className="space-y-2 pt-1">
-              <span className="text-[9px] font-bold text-slate-400 light:text-slate-850 uppercase tracking-wider block">Các bước khắc phục sự cố:</span>
+              <span className="text-[9px] font-bold text-slate-400 light:text-slate-800 uppercase tracking-wider block">Các bước khắc phục sự cố:</span>
               {resolutionGuide ? (
                 <div className="space-y-2">
                   {resolutionGuide.split('\n').map((line, idx) => (
