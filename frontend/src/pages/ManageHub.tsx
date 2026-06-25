@@ -10,7 +10,8 @@ import {
   ArrowRight, 
   Sliders, 
   Loader2,
-  AlertCircle
+  AlertCircle,
+  KeyRound
 } from 'lucide-react';
 
 interface AdminStats {
@@ -87,6 +88,15 @@ export const ManageHub: React.FC = () => {
       icon: <BookOpen className="w-8 h-8 text-rose-400" />,
       colorClass: 'from-rose-500/10 to-pink-500/10 border-rose-500/20 text-rose-400 bg-rose-500/5',
       badgeClass: 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+    },
+    {
+      title: 'Yêu cầu đổi mật khẩu',
+      description: 'Xem các yêu cầu khôi phục mật khẩu từ người dùng, thực hiện cấp lại mật khẩu mới và gửi mail thông báo tự động.',
+      path: '/admin/reset-requests',
+      count: (stats as any)?.passwordResetsCount ?? 0,
+      icon: <KeyRound className="w-8 h-8 text-amber-400" />,
+      colorClass: 'from-amber-500/10 to-yellow-500/10 border-amber-500/20 text-amber-400 bg-amber-500/5',
+      badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20'
     }
   ];
 

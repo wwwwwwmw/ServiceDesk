@@ -8,6 +8,7 @@ export interface User {
   role: 'admin' | 'manager' | 'employee' | 'user';
   location_id: string | null;
   location_name?: string;
+  room?: string | null;
 }
 
 interface AuthContextType {

@@ -33,12 +33,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.findUserByEmail = exports.getUsers = exports.getEmployees = exports.reopenTicket = exports.updateTicketStatus = exports.assignTicket = exports.getTicketDetail = exports.getTickets = exports.createTicket = void 0;
+exports.getReports = exports.findUserByEmail = exports.getUsers = exports.getEmployees = exports.reopenTicket = exports.updateTicketStatus = exports.assignTicket = exports.getTicketDetail = exports.getTickets = exports.createTicket = void 0;
 const db_1 = __importStar(require("../config/db"));
 const notificationService_1 = require("../services/notificationService");
 // 1. Tạo mới Ticket (Tạo cho bản thân hoặc tạo hộ)
 const createTicket = async (req, res) => {
-    const { title, requester_id, requester_email, category_id, location_id: custom_location_id, dynamic_data, priority, attachments } = req.body;
+    const { title, requester_id, requester_email, category_id, location_id: custom_location_id, room: custom_room, dynamic_data, priority, attachments } = req.body;
     const creator_id = req.user?.id;
     if (!title || !category_id || !dynamic_data) {
         return res.status(400).json({ error: 'Vui lòng cung cấp tiêu đề, danh mục và điền dữ liệu form động!' });
@@ -49,7 +49,7 @@ const createTicket = async (req, res) => {
         let finalRequesterId = requester_id;
         // Nếu truyền requester_email, tra cứu để tìm requester_id tương ứng
         if (requester_email) {
-            const userByEmailResult = await client.query('SELECT id, location_id FROM users WHERE email = $1', [requester_email]);
+            const userByEmailResult = await client.query('SELECT id, location_id, room FROM users WHERE email = $1', [requester_email]);
             if (userByEmailResult.rowCount === 0) {
                 await client.query('ROLLBACK');
                 return res.status(400).json({ error: `Không tìm thấy người yêu cầu với email: ${requester_email}!` });
@@ -59,14 +59,15 @@ const createTicket = async (req, res) => {
         if (!finalRequesterId) {
             finalRequesterId = creator_id;
         }
-        // Tra cứu thông tin người yêu cầu để lấy location_id mặc định
-        const requesterResult = await client.query('SELECT location_id FROM users WHERE id = $1', [finalRequesterId]);
+        // Tra cứu thông tin người yêu cầu để lấy location_id và room mặc định
+        const requesterResult = await client.query('SELECT location_id, room FROM users WHERE id = $1', [finalRequesterId]);
         if (requesterResult.rowCount === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ error: 'Không tìm thấy thông tin người yêu cầu thực tế trong hệ thống!' });
         }
-        // Ưu tiên sử dụng custom_location_id từ request body, nếu không có mới dùng location_id mặc định của requester
+        // Ưu tiên sử dụng custom_location_id và custom_room từ request body, nếu không có mới dùng mặc định của requester
         const finalLocationId = custom_location_id || requesterResult.rows[0].location_id;
+        const finalRoom = custom_room !== undefined ? custom_room : requesterResult.rows[0].room;
         if (!finalLocationId) {
             await client.query('ROLLBACK');
             return res.status(400).json({ error: 'Người yêu cầu chưa được gán khu vực mặc định. Vui lòng liên hệ Admin thiết lập!' });
@@ -83,15 +84,16 @@ const createTicket = async (req, res) => {
             await client.query('ROLLBACK');
             return res.status(404).json({ error: 'Danh mục sự cố/yêu cầu không tồn tại!' });
         }
-        // Insert Ticket vào PostgreSQL
-        const ticketResult = await client.query(`INSERT INTO tickets (title, requester_id, creator_id, category_id, location_id, priority, status, dynamic_data) 
-       VALUES ($1, $2, $3, $4, $5, $6, 'open', $7) 
-       RETURNING id, title, requester_id, creator_id, category_id, location_id, priority, status, created_at`, [
+        // Insert Ticket vào PostgreSQL (thêm trường room)
+        const ticketResult = await client.query(`INSERT INTO tickets (title, requester_id, creator_id, category_id, location_id, room, priority, status, dynamic_data) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', $8) 
+       RETURNING id, title, requester_id, creator_id, category_id, location_id, room, priority, status, created_at`, [
             title,
             finalRequesterId,
             creator_id,
             category_id,
             finalLocationId,
+            finalRoom || null,
             priority || 'medium',
             JSON.stringify(dynamic_data)
         ]);
@@ -137,7 +139,7 @@ const getTickets = async (req, res) => {
     const { status, location_id, priority } = req.query;
     try {
         let sql = `
-      SELECT t.id, t.title, t.priority, t.status, t.created_at, t.resolved_at, t.closed_at,
+      SELECT t.id, t.title, t.priority, t.status, t.created_at, t.resolved_at, t.closed_at, t.room,
              req.username as requester_name, 
              assign.username as assignee_name,
              cat.name as category_name, 
@@ -447,7 +449,7 @@ const findUserByEmail = async (req, res) => {
         return res.status(400).json({ error: 'Vui lòng cung cấp email cần tra cứu!' });
     }
     try {
-        const result = await (0, db_1.query)(`SELECT u.id, u.username, u.email, u.location_id, l.name as location_name 
+        const result = await (0, db_1.query)(`SELECT u.id, u.username, u.email, u.location_id, l.name as location_name, u.room 
        FROM users u
        LEFT JOIN locations l ON u.location_id = l.id
        WHERE u.email = $1`, [email]);
@@ -462,3 +464,70 @@ const findUserByEmail = async (req, res) => {
     }
 };
 exports.findUserByEmail = findUserByEmail;
+// 10. Lấy dữ liệu thống kê báo cáo (Reports & Statistics) có phân quyền và bộ lọc nâng cao
+const getReports = async (req, res) => {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    const { startDate, endDate, location_id, room, user_account } = req.query;
+    try {
+        let sql = `
+      SELECT t.id, t.title, t.priority, t.status, t.created_at, t.resolved_at, t.closed_at, t.room,
+             req.username as requester_name, req.email as requester_email,
+             assign.username as assignee_name, assign.email as assignee_email,
+             cat.name as category_name, 
+             loc.name as location_name 
+      FROM tickets t
+      JOIN users req ON t.requester_id = req.id
+      LEFT JOIN users assign ON t.assignee_id = assign.id
+      JOIN categories cat ON t.category_id = cat.id
+      JOIN locations loc ON t.location_id = loc.id
+    `;
+        const conditions = [];
+        const params = [];
+        // Phân quyền dữ liệu theo Role
+        if (userRole === 'user') {
+            conditions.push(`(t.requester_id = $${params.length + 1} OR t.creator_id = $${params.length + 1})`);
+            params.push(userId);
+        }
+        else if (userRole === 'employee') {
+            conditions.push(`t.assignee_id = $${params.length + 1}`);
+            params.push(userId);
+        }
+        // Bộ lọc: Thời gian bắt đầu
+        if (startDate && startDate !== '') {
+            conditions.push(`t.created_at >= $${params.length + 1}`);
+            params.push(`${startDate} 00:00:00`);
+        }
+        // Bộ lọc: Thời gian kết thúc
+        if (endDate && endDate !== '') {
+            conditions.push(`t.created_at <= $${params.length + 1}`);
+            params.push(`${endDate} 23:59:59`);
+        }
+        // Bộ lọc: Khu vực (location_id)
+        if (location_id && location_id !== '') {
+            conditions.push(`t.location_id = $${params.length + 1}`);
+            params.push(location_id);
+        }
+        // Bộ lọc: Phòng (room) - Tìm kiếm mờ không phân biệt hoa thường
+        if (room && room !== '') {
+            conditions.push(`t.room ILIKE $${params.length + 1}`);
+            params.push(`%${room}%`);
+        }
+        // Bộ lọc: Tài khoản người dùng (Tìm kiếm theo tên/email của người yêu cầu hoặc người xử lý)
+        if (user_account && user_account !== '') {
+            conditions.push(`(req.username ILIKE $${params.length + 1} OR req.email ILIKE $${params.length + 1} OR assign.username ILIKE $${params.length + 1} OR assign.email ILIKE $${params.length + 1})`);
+            params.push(`%${user_account}%`);
+        }
+        if (conditions.length > 0) {
+            sql += ' WHERE ' + conditions.join(' AND ');
+        }
+        sql += ' ORDER BY t.created_at DESC';
+        const result = await (0, db_1.query)(sql, params);
+        return res.status(200).json(result.rows);
+    }
+    catch (error) {
+        console.error('[GetReports Error]:', error);
+        return res.status(500).json({ error: 'Lỗi máy chủ khi tải báo cáo thống kê!' });
+    }
+};
+exports.getReports = getReports;

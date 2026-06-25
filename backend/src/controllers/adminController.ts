@@ -2,15 +2,15 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { query } from '../config/db';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import { sendResetEmail } from '../services/emailService';
 
-// ==========================================
 // 1. QUẢN LÝ NGƯỜI DÙNG (User Management CRUD)
 // ==========================================
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
     const result = await query(
-      `SELECT u.id, u.username, u.email, u.role, u.location_id, l.name as location_name, u.created_at
+      `SELECT u.id, u.username, u.email, u.role, u.location_id, l.name as location_name, u.room, u.created_at
        FROM users u
        LEFT JOIN locations l ON u.location_id = l.id
        ORDER BY u.created_at DESC`
@@ -23,7 +23,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 };
 
 export const createUser = async (req: Request, res: Response) => {
-  const { username, email, role, password, location_id } = req.body;
+  const { username, email, role, password, location_id, room } = req.body;
 
   if (!username || !email || !role || !password) {
     return res.status(400).json({ error: 'Vui lòng cung cấp đầy đủ: username, email, role và mật khẩu!' });
@@ -41,10 +41,10 @@ export const createUser = async (req: Request, res: Response) => {
     const password_hash = await bcrypt.hash(password, salt);
 
     const result = await query(
-      `INSERT INTO users (username, email, role, password_hash, location_id)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, username, email, role, location_id`,
-      [username, email, role, password_hash, location_id || null]
+      `INSERT INTO users (username, email, role, password_hash, location_id, room)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, username, email, role, location_id, room`,
+      [username, email, role, password_hash, location_id || null, room || null]
     );
 
     return res.status(201).json({
@@ -59,7 +59,7 @@ export const createUser = async (req: Request, res: Response) => {
 
 export const updateUser = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { username, email, role, password, location_id } = req.body;
+  const { username, email, role, password, location_id, room } = req.body;
 
   if (!username || !email || !role) {
     return res.status(400).json({ error: 'Vui lòng cung cấp username, email và role!' });
@@ -82,19 +82,19 @@ export const updateUser = async (req: Request, res: Response) => {
       const password_hash = await bcrypt.hash(password, salt);
       result = await query(
         `UPDATE users 
-         SET username = $1, email = $2, role = $3, location_id = $4, password_hash = $5
-         WHERE id = $6
-         RETURNING id, username, email, role, location_id`,
-        [username, email, role, location_id || null, password_hash, id]
+         SET username = $1, email = $2, role = $3, location_id = $4, password_hash = $5, room = $6
+         WHERE id = $7
+         RETURNING id, username, email, role, location_id, room`,
+        [username, email, role, location_id || null, password_hash, room || null, id]
       );
     } else {
       // Cập nhật không đổi mật khẩu
       result = await query(
         `UPDATE users 
-         SET username = $1, email = $2, role = $3, location_id = $4
-         WHERE id = $5
-         RETURNING id, username, email, role, location_id`,
-        [username, email, role, location_id || null, id]
+         SET username = $1, email = $2, role = $3, location_id = $4, room = $5
+         WHERE id = $6
+         RETURNING id, username, email, role, location_id, room`,
+        [username, email, role, location_id || null, room || null, id]
       );
     }
 
@@ -417,17 +417,99 @@ export const getAdminStats = async (req: Request, res: Response) => {
     const categoriesRes = await query('SELECT COUNT(*)::int as count FROM categories');
     const templatesRes = await query('SELECT COUNT(*)::int as count FROM service_templates');
     const guidesRes = await query('SELECT COUNT(*)::int as count FROM knowledge_base');
+    const resetsRes = await query(`SELECT COUNT(*)::int as count FROM password_reset_requests WHERE status = 'pending'`);
 
     return res.status(200).json({
       usersCount: usersRes.rows[0]?.count || 0,
       locationsCount: locationsRes.rows[0]?.count || 0,
       categoriesCount: categoriesRes.rows[0]?.count || 0,
       templatesCount: templatesRes.rows[0]?.count || 0,
-      guidesCount: guidesRes.rows[0]?.count || 0
+      guidesCount: guidesRes.rows[0]?.count || 0,
+      passwordResetsCount: resetsRes.rows[0]?.count || 0
     });
   } catch (error) {
     console.error('[Admin GetStats Error]:', error);
     return res.status(500).json({ error: 'Lỗi máy chủ khi lấy thống kê quản trị!' });
   }
 };
+
+// Lấy danh sách yêu cầu đặt lại mật khẩu
+export const getPasswordResets = async (req: Request, res: Response) => {
+  try {
+    const result = await query(
+      `SELECT pr.id, pr.status, pr.created_at, pr.completed_at,
+              u.id as user_id, u.username, u.email
+       FROM password_reset_requests pr
+       JOIN users u ON pr.user_id = u.id
+       ORDER BY pr.created_at DESC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('[Admin GetPasswordResets Error]:', error);
+    return res.status(500).json({ error: 'Lỗi máy chủ khi lấy danh sách yêu cầu đặt lại mật khẩu!' });
+  }
+};
+
+// Xử lý đặt lại mật khẩu và gửi email
+export const processPasswordReset = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { new_password } = req.body;
+
+  if (!new_password || new_password.trim() === '') {
+    return res.status(400).json({ error: 'Vui lòng nhập mật khẩu mới!' });
+  }
+
+  try {
+    // 1. Kiểm tra yêu cầu tồn tại và chưa hoàn thành
+    const prCheck = await query(
+      `SELECT pr.user_id, u.email, u.username 
+       FROM password_reset_requests pr
+       JOIN users u ON pr.user_id = u.id
+       WHERE pr.id = $1 AND pr.status = 'pending'`,
+      [id]
+    );
+
+    if (prCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'Yêu cầu không tồn tại hoặc đã được xử lý từ trước!' });
+    }
+
+    const { user_id, email, username } = prCheck.rows[0];
+
+    // 2. Mã hóa và cập nhật mật khẩu cho user
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(new_password.trim(), salt);
+
+    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [password_hash, user_id]);
+
+    // 3. Cập nhật trạng thái yêu cầu
+    await query(
+      `UPDATE password_reset_requests 
+       SET status = 'completed', completed_at = CURRENT_TIMESTAMP 
+       WHERE id = $1`,
+      [id]
+    );
+
+    // 4. Gửi email thông báo cho người dùng (Chạy bất đồng bộ để tránh chặn phản hồi API của Admin)
+    sendResetEmail(email, username, new_password.trim()).then(success => {
+      console.log(`[EmailService Result]: Gửi mail đặt lại mật khẩu tới ${email}: ${success ? 'Thành công' : 'Thất bại'}`);
+    }).catch(err => {
+      console.error('[EmailService Promise Error]:', err);
+    });
+
+    // 5. Tạo thông báo trong hệ thống cho người dùng đó biết
+    await query(
+      `INSERT INTO notifications (user_id, title, content) 
+       VALUES ($1, 'Đặt lại mật khẩu thành công', 'Mật khẩu tài khoản của bạn đã được quản trị viên đặt lại và gửi qua email.')`,
+      [user_id]
+    );
+
+    return res.status(200).json({
+      message: 'Đặt lại mật khẩu thành công và đã gửi email thông báo cho người dùng!'
+    });
+  } catch (error) {
+    console.error('[Admin ProcessPasswordReset Error]:', error);
+    return res.status(500).json({ error: 'Lỗi máy chủ khi xử lý đặt lại mật khẩu!' });
+  }
+};
+
 

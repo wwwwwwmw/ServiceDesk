@@ -23,6 +23,7 @@ interface User {
   email: string;
   role: 'admin' | 'manager' | 'employee' | 'user';
   location_id: string | null;
+  room?: string | null;
 }
 
 export const UserForm: React.FC = () => {
@@ -42,6 +43,7 @@ export const UserForm: React.FC = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'manager' | 'employee' | 'user'>('user');
   const [locationId, setLocationId] = useState('');
+  const [room, setRoom] = useState('');
 
   useEffect(() => {
     const initData = async () => {
@@ -59,6 +61,7 @@ export const UserForm: React.FC = () => {
             setEmail(found.email);
             setRole(found.role);
             setLocationId(found.location_id || '');
+            setRoom(found.room || '');
           } else {
             setError('Không tìm thấy người dùng này trong hệ thống.');
           }
@@ -96,6 +99,7 @@ export const UserForm: React.FC = () => {
         email: email.trim(),
         role,
         location_id: locationId || null,
+        room: room.trim() || null,
         password: password || undefined
       };
 
@@ -108,6 +112,7 @@ export const UserForm: React.FC = () => {
         setPassword('');
         setRole('user');
         setLocationId('');
+        setRoom('');
       } else {
         const response = await api.put(`/api/admin/users/${id}`, payload);
         setSuccess(response.data.message || 'Cập nhật tài khoản người dùng thành công!');
@@ -221,7 +226,7 @@ export const UserForm: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Role */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-400 light:text-slate-500 uppercase tracking-wider">Vai trò hệ thống</label>
@@ -255,6 +260,19 @@ export const UserForm: React.FC = () => {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Room */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-400 light:text-slate-500 uppercase tracking-wider">Phòng làm việc mặc định</label>
+              <input
+                type="text"
+                value={room}
+                onChange={(e) => setRoom(e.target.value)}
+                className="w-full px-4 py-2.5 bg-slate-950/50 light:bg-slate-50 text-sm rounded-xl border border-slate-800 light:border-slate-250 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none text-white light:text-slate-900 font-medium transition duration-200"
+                placeholder="Ví dụ: Phòng 201, 305..."
+                disabled={formLoading}
+              />
             </div>
           </div>
 

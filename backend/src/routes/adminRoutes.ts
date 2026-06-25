@@ -16,7 +16,9 @@ import {
   createLocation,
   updateLocation,
   deleteLocation,
-  getAdminStats
+  getAdminStats,
+  getPasswordResets,
+  processPasswordReset
 } from '../controllers/adminController';
 
 const router = Router();
@@ -51,5 +53,9 @@ router.delete('/service-templates/:id', deleteServiceTemplate);
 router.post('/knowledge-base', createKBArticle);
 router.put('/knowledge-base/:id', updateKBArticle);
 router.delete('/knowledge-base/:id', deleteKBArticle);
+
+// Yêu cầu đổi mật khẩu
+router.get('/password-resets', getPasswordResets);
+router.post('/password-resets/:id/process', processPasswordReset);
 
 export default router;

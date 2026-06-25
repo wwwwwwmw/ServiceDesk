@@ -20,6 +20,7 @@ interface User {
   role: 'admin' | 'manager' | 'employee' | 'user';
   location_id: string | null;
   location_name?: string;
+  room?: string | null;
   created_at: string;
 }
 
@@ -171,6 +172,7 @@ export const ManageUsers: React.FC = () => {
                   <th className="p-4 text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide">Email</th>
                   <th className="p-4 text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide">Vai trò</th>
                   <th className="p-4 text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide">Khu vực</th>
+                  <th className="p-4 text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide">Phòng</th>
                   <th className="p-4 text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide">Ngày tạo</th>
                   <th className="p-4 text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide text-right">Thao tác</th>
                 </tr>
@@ -178,7 +180,7 @@ export const ManageUsers: React.FC = () => {
               <tbody className="divide-y divide-slate-850 light:divide-slate-200">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-sm text-slate-500">
+                    <td colSpan={7} className="p-8 text-center text-sm text-slate-500">
                       Không tìm thấy người dùng nào phù hợp.
                     </td>
                   </tr>
@@ -208,8 +210,11 @@ export const ManageUsers: React.FC = () => {
                           <span className="text-xs text-slate-500 font-medium">Chưa gán</span>
                         )}
                       </td>
+                      <td className="p-4 text-xs text-slate-300 light:text-slate-700 font-medium">
+                        {u.room || '-'}
+                      </td>
                       <td className="p-4 text-xs text-slate-400 light:text-slate-500">
-                        {new Date(u.created_at).toLocaleDateString('vi-VN')}
+                        {u.created_at ? new Date(u.created_at).toLocaleDateString('vi-VN') : '-'}
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end space-x-2">

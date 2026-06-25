@@ -8,7 +8,8 @@ import {
   reopenTicket,
   getEmployees,
   getUsers,
-  findUserByEmail
+  findUserByEmail,
+  getReports
 } from '../controllers/ticketController';
 import { 
   getServiceTemplates,
@@ -45,6 +46,9 @@ router.post('/tickets', createTicket);
 
 // Lấy danh sách ticket (lọc phân quyền tự động bên trong Controller)
 router.get('/tickets', getTickets);
+
+// Lấy danh sách ticket thống kê báo cáo (lọc nâng cao)
+router.get('/reports', getReports);
 
 // Lấy chi tiết ticket (kèm form động)
 router.get('/tickets/:id', getTicketDetail);

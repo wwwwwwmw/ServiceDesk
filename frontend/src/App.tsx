@@ -20,6 +20,8 @@ import CategoryForm from './pages/CategoryForm';
 import TemplateForm from './pages/TemplateForm';
 import GuideForm from './pages/GuideForm';
 import ManageHub from './pages/ManageHub';
+import Reports from './pages/Reports';
+import ManageResetRequests from './pages/ManageResetRequests';
 
 // Component phụ điều hướng trang chủ dựa trên trạng thái đăng nhập
 const HomeRedirect = () => {
@@ -47,6 +49,7 @@ function App() {
               <Route path="/services-hub" element={<ServicesHub />} />
               <Route path="/incidents-hub" element={<IncidentsHub />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/reports" element={<Reports />} />
             </Route>
           </Route>
 
@@ -54,6 +57,7 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
             <Route element={<AppLayout />}>
               <Route path="/admin/management" element={<ManageHub />} />
+              <Route path="/admin/reset-requests" element={<ManageResetRequests />} />
               <Route path="/admin/users" element={<ManageUsers />} />
               <Route path="/admin/users/create" element={<UserForm />} />
               <Route path="/admin/users/edit/:id" element={<UserForm />} />

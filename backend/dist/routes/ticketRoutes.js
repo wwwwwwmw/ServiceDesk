@@ -23,6 +23,8 @@ router.get('/knowledge-base/:id', serviceController_1.getKnowledgeBaseArticleByI
 router.post('/tickets', ticketController_1.createTicket);
 // Lấy danh sách ticket (lọc phân quyền tự động bên trong Controller)
 router.get('/tickets', ticketController_1.getTickets);
+// Lấy danh sách ticket thống kê báo cáo (lọc nâng cao)
+router.get('/reports', ticketController_1.getReports);
 // Lấy chi tiết ticket (kèm form động)
 router.get('/tickets/:id', ticketController_1.getTicketDetail);
 // Giao việc kỹ thuật viên (Chỉ Manager/Admin)

@@ -15,7 +15,7 @@ export const login = async (req: Request, res: Response) => {
   try {
     // Tìm kiếm người dùng bằng username hoặc email, kết hợp lấy tên khu vực
     const userResult = await query(
-      `SELECT u.id, u.username, u.email, u.password_hash, u.role, u.location_id, l.name as location_name 
+      `SELECT u.id, u.username, u.email, u.password_hash, u.role, u.location_id, l.name as location_name, u.room 
        FROM users u 
        LEFT JOIN locations l ON u.location_id = l.id 
        WHERE u.username = $1 OR u.email = $1`,
@@ -57,7 +57,8 @@ export const login = async (req: Request, res: Response) => {
         email: user.email,
         role: user.role,
         location_id: user.location_id,
-        location_name: user.location_name
+        location_name: user.location_name,
+        room: user.room
       }
     });
 
@@ -75,7 +76,7 @@ export const getMe = async (req: AuthRequest, res: Response) => {
 
   try {
     const userResult = await query(
-      `SELECT u.id, u.username, u.email, u.role, u.location_id, l.name as location_name 
+      `SELECT u.id, u.username, u.email, u.role, u.location_id, l.name as location_name, u.room 
        FROM users u 
        LEFT JOIN locations l ON u.location_id = l.id 
        WHERE u.id = $1`,
@@ -93,16 +94,29 @@ export const getMe = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Cập nhật thông tin cá nhân (username, email, location_id)
+// Cập nhật thông tin cá nhân (username, email, location_id, room)
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   const userId = req.user?.id;
-  const { username, email, location_id } = req.body;
+  const { username, email, location_id, room } = req.body;
 
   if (!username || !email) {
     return res.status(400).json({ error: 'Tên người dùng và Email không được để trống!' });
   }
 
   try {
+    // Lấy thông tin user hiện tại trong database để check role và giữ nguyên location nếu không phải Admin
+    const currentUserRes = await query('SELECT role, location_id FROM users WHERE id = $1', [userId]);
+    if (currentUserRes.rowCount === 0) {
+      return res.status(404).json({ error: 'Không tìm thấy người dùng!' });
+    }
+    const currentUser = currentUserRes.rows[0];
+
+    // Khóa không cho đổi location_id trừ phi là admin
+    let finalLocationId = location_id;
+    if (currentUser.role !== 'admin') {
+      finalLocationId = currentUser.location_id; // Giữ nguyên vị trí cũ
+    }
+
     // Kiểm tra xem tên đăng nhập hoặc email đã tồn tại ở tài khoản khác chưa
     const checkDuplicate = await query(
       'SELECT id FROM users WHERE (username = $1 OR email = $2) AND id != $3',
@@ -113,15 +127,15 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Tên đăng nhập hoặc Email đã được sử dụng bởi một tài khoản khác!' });
     }
 
-    // Cập nhật thông tin
+    // Cập nhật thông tin (bao gồm cả room)
     await query(
-      'UPDATE users SET username = $1, email = $2, location_id = $3 WHERE id = $4',
-      [username, email, location_id || null, userId]
+      'UPDATE users SET username = $1, email = $2, location_id = $3, room = $4 WHERE id = $5',
+      [username, email, finalLocationId || null, room || null, userId]
     );
 
     // Lấy thông tin mới nhất bao gồm cả tên khu vực
     const updatedUserResult = await query(
-      `SELECT u.id, u.username, u.email, u.role, u.location_id, l.name as location_name 
+      `SELECT u.id, u.username, u.email, u.role, u.location_id, l.name as location_name, u.room 
        FROM users u 
        LEFT JOIN locations l ON u.location_id = l.id 
        WHERE u.id = $1`,
@@ -189,5 +203,49 @@ export const updatePassword = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('[UpdatePassword Controller Error]:', error);
     return res.status(500).json({ error: 'Lỗi máy chủ khi cập nhật mật khẩu!' });
+  }
+};
+
+// Yêu cầu quên mật khẩu (Public)
+export const forgotPassword = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email || email.trim() === '') {
+    return res.status(400).json({ error: 'Vui lòng cung cấp email của bạn!' });
+  }
+
+  try {
+    // 1. Tìm người dùng bằng email
+    const userResult = await query('SELECT id, username FROM users WHERE email = $1', [email.trim()]);
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ error: 'Không tìm thấy tài khoản người dùng với email này trong hệ thống!' });
+    }
+
+    const user = userResult.rows[0];
+
+    // 2. Tạo yêu cầu đổi mật khẩu trong DB
+    await query(
+      `INSERT INTO password_reset_requests (user_id, status) VALUES ($1, 'pending')`,
+      [user.id]
+    );
+
+    // 3. Tạo thông báo cho toàn bộ các Admin
+    const adminsResult = await query("SELECT id FROM users WHERE role = 'admin'");
+    const notificationTitle = 'Yêu cầu đổi mật khẩu';
+    const notificationContent = `Tài khoản "${user.username}" (${email}) đã yêu cầu đổi mật khẩu.`;
+    
+    for (const admin of adminsResult.rows) {
+      await query(
+        `INSERT INTO notifications (user_id, title, content) VALUES ($1, $2, $3)`,
+        [admin.id, notificationTitle, notificationContent]
+      );
+    }
+
+    return res.status(200).json({
+      message: 'Yêu cầu đặt lại mật khẩu đã được ghi nhận. Vui lòng đợi thông báo từ admin!'
+    });
+  } catch (error) {
+    console.error('[ForgotPassword Controller Error]:', error);
+    return res.status(500).json({ error: 'Lỗi máy chủ khi ghi nhận yêu cầu quên mật khẩu!' });
   }
 };

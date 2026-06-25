@@ -24,6 +24,7 @@ export const Settings: React.FC = () => {
   const [username, setUsername] = useState(user?.username || '');
   const [email, setEmail] = useState(user?.email || '');
   const [locationId, setLocationId] = useState(user?.location_id || '');
+  const [room, setRoom] = useState(user?.room || '');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -62,7 +63,8 @@ export const Settings: React.FC = () => {
       const response = await api.put<{ message: string; token: string; user: any }>('/api/auth/profile', {
         username: username.trim(),
         email: email.trim(),
-        location_id: locationId || null
+        location_id: locationId || null,
+        room: room.trim() || null
       });
 
       const { token, user: updatedUser } = response.data;
@@ -208,18 +210,19 @@ export const Settings: React.FC = () => {
               </div>
 
               {/* Khu vực làm việc */}
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide flex items-center">
                   <MapPin className="w-3.5 h-3.5 mr-1 text-sky-400" />
-                  Khu vực làm việc hiện tại
+                  Khu vực làm việc
                 </label>
                 <select
                   value={locationId}
+                  disabled={user?.role !== 'admin'}
                   onChange={(e) => setLocationId(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-950/50 light:bg-slate-50 text-sm rounded-xl border border-slate-800 light:border-slate-250 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none text-white light:text-slate-900 font-medium transition duration-200 appearance-none cursor-pointer"
+                  className="w-full px-4 py-2.5 bg-slate-950/50 light:bg-slate-50 text-sm rounded-xl border border-slate-800 light:border-slate-250 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none text-white light:text-slate-900 font-medium transition duration-200 appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="" className="bg-slate-950 light:bg-white text-slate-400">
-                    -- Chọn khu vực làm việc của bạn --
+                    -- Chọn khu vực --
                   </option>
                   {locations.map((loc) => (
                     <option key={loc.id} value={loc.id} className="bg-slate-950 light:bg-white text-white light:text-slate-900">
@@ -227,8 +230,32 @@ export const Settings: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                {user?.role !== 'admin' ? (
+                  <p className="text-[11px] text-amber-500 mt-1">
+                    * Chỉ Admin mới được quyền thay đổi Khu vực.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    * Hệ thống sẽ dựa trên Khu vực để tự động điều hướng ticket.
+                  </p>
+                )}
+              </div>
+
+              {/* Phòng làm việc */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wide flex items-center">
+                  <span className="w-3.5 h-3.5 mr-1 flex items-center justify-center text-sky-400 font-extrabold">P</span>
+                  Phòng làm việc mặc định
+                </label>
+                <input
+                  type="text"
+                  value={room}
+                  onChange={(e) => setRoom(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-slate-950/50 light:bg-slate-50 text-sm rounded-xl border border-slate-800 light:border-slate-250 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none text-white light:text-slate-900 font-medium transition duration-200"
+                  placeholder="Ví dụ: Phòng 201, 305..."
+                />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  * Hệ thống sẽ dựa trên Khu vực làm việc để tự động điều hướng ticket của bạn đến nhân viên kỹ thuật phụ trách tương ứng.
+                  * Tự động điền vào ticket khi bạn tạo yêu cầu hỗ trợ mới.
                 </p>
               </div>
             </div>

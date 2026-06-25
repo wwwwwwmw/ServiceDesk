@@ -37,6 +37,7 @@ interface TicketDetailData {
   category_name: string;
   template_json: any[];
   location_name: string;
+  room: string | null;
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed' | 'reopened';
   dynamic_data: Record<string, any>;
@@ -315,7 +316,7 @@ export const TicketDetail: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-slate-500" />
-                  <span>Khu vực: <strong className="text-slate-200 light:text-slate-800">{ticket.location_name}</strong></span>
+                  <span>Khu vực: <strong className="text-slate-200 light:text-slate-800">{ticket.location_name}</strong>{ticket.room && <span> - Phòng: <strong className="text-slate-200 light:text-slate-800">{ticket.room}</strong></span>}</span>
                 </div>
                 {ticket.creator_name !== ticket.requester_name && (
                   <div className="flex items-center space-x-2">

@@ -11,7 +11,8 @@ import {
   Mail,
   Loader2,
   Paperclip,
-  X
+  X,
+  Building
 } from 'lucide-react';
 
 interface Category {
@@ -44,6 +45,7 @@ interface UserProfile {
   email: string;
   location_id: string;
   location_name: string;
+  room: string | null;
 }
 
 export const CreateTicket: React.FC = () => {
@@ -68,9 +70,10 @@ export const CreateTicket: React.FC = () => {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [checkingEmail, setCheckingEmail] = useState(false);
 
-  // Locations list and selected Location
+  // Locations list and selected Location & Room
   const [locationsList, setLocationsList] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState(user?.location_id || '');
+  const [room, setRoom] = useState(user?.room || '');
   
   // Form values động
   const [dynamicValues, setDynamicValues] = useState<Record<string, any>>({});
@@ -169,6 +172,7 @@ export const CreateTicket: React.FC = () => {
       setResolvedUserId(user.id);
       setResolvedUsername(user.username);
       setSelectedLocationId(user.location_id || '');
+      setRoom(user?.room || '');
       setEmailError(null);
       return;
     }
@@ -194,6 +198,7 @@ export const CreateTicket: React.FC = () => {
           setResolvedUserId(data.id);
           setResolvedUsername(data.username);
           setSelectedLocationId(data.location_id || '');
+          setRoom(data.room || '');
           setEmailError(null);
         }
       } catch (err: any) {
@@ -307,6 +312,7 @@ export const CreateTicket: React.FC = () => {
         title,
         requester_id: resolvedUserId,
         location_id: selectedLocationId,
+        room: room.trim() || null,
         category_id: selectedCategoryId,
         dynamic_data: dynamicValues,
         priority,
@@ -402,7 +408,8 @@ export const CreateTicket: React.FC = () => {
           </div>
 
           {/* 2. Trường email người yêu cầu & chọn khu vực */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/30 light:bg-slate-50 border border-slate-800 light:border-slate-200 p-5 rounded-2xl">
+          {/* 2. Trường email người yêu cầu & chọn khu vực & phòng */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-950/30 light:bg-slate-50 border border-slate-800 light:border-slate-200 p-5 rounded-2xl">
             
             {/* Email Input */}
             <div className="space-y-1.5">
@@ -460,6 +467,24 @@ export const CreateTicket: React.FC = () => {
               </select>
               <span className="text-[10px] text-slate-500 light:text-slate-400 block pt-1">
                 Tự động đổi theo email; bạn có thể chọn lại để ghi đè.
+              </span>
+            </div>
+
+            {/* Room Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-400 light:text-slate-500 uppercase tracking-wider flex items-center">
+                <Building className="w-3.5 h-3.5 mr-1" />
+                <span>Phòng / Vị trí chi tiết</span>
+              </label>
+              <input
+                type="text"
+                value={room}
+                onChange={(e) => setRoom(e.target.value)}
+                placeholder="Ví dụ: Phòng 202, Lầu 2..."
+                className="w-full bg-slate-950 light:bg-white border border-slate-800 light:border-slate-250 rounded-xl p-3 text-xs text-slate-200 light:text-slate-800 outline-none focus:border-sky-500/50"
+              />
+              <span className="text-[10px] text-slate-500 light:text-slate-400 block pt-1">
+                Tự động điền theo email hoặc nhập thủ công.
               </span>
             </div>
 

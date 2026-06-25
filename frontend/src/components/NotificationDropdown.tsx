@@ -59,7 +59,7 @@ export const NotificationDropdown: React.FC = () => {
   }, []);
 
   // Đánh dấu một thông báo là đã đọc
-  const handleMarkAsRead = async (id: string, ticketId: string | null) => {
+  const handleMarkAsRead = async (id: string, ticketId: string | null, title: string) => {
     try {
       await api.patch(`/api/notifications/${id}/read`);
       // Cập nhật client-side state nhanh hơn
@@ -70,6 +70,8 @@ export const NotificationDropdown: React.FC = () => {
 
       if (ticketId) {
         navigate(`/ticket/${ticketId}`);
+      } else if (title === 'Yêu cầu đổi mật khẩu') {
+        navigate('/admin/reset-requests');
       }
     } catch (error) {
       console.error('Lỗi khi đánh dấu đã đọc:', error);
@@ -166,7 +168,7 @@ export const NotificationDropdown: React.FC = () => {
                 {notifications.map((item) => (
                   <div
                     key={item.id}
-                    onClick={() => handleMarkAsRead(item.id, item.ticket_id)}
+                    onClick={() => handleMarkAsRead(item.id, item.ticket_id, item.title)}
                     className={`p-4 flex gap-3 hover:bg-slate-800/30 light:hover:bg-slate-50 cursor-pointer transition relative group ${
                       !item.is_read ? 'bg-sky-500/5 light:bg-sky-50/40' : ''
                     }`}

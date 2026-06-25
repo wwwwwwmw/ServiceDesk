@@ -14,7 +14,8 @@ import {
   Settings,
   Sliders,
   Menu,
-  X
+  X,
+  BarChart3
 } from 'lucide-react';
 
 export const AppLayout: React.FC = () => {
@@ -82,6 +83,12 @@ export const AppLayout: React.FC = () => {
         icon: <Sliders className="w-5 h-5" />
       });
     }
+
+    items.push({
+      path: '/reports',
+      label: 'Báo cáo & Thống kê',
+      icon: <BarChart3 className="w-5 h-5" />
+    });
 
     items.push({
       path: '/settings',
