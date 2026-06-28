@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api, useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
@@ -54,6 +54,201 @@ export const Reports: React.FC = () => {
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [roomFilter, setRoomFilter] = useState('');
   const [userAccountFilter, setUserAccountFilter] = useState('');
+
+  // Chart state
+  const [showChart, setShowChart] = useState(false);
+  const [groupBy, setGroupBy] = useState<'status' | 'room' | 'requester' | 'date'>('status');
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    title: string;
+    label: string;
+    count: number;
+  } | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const statusColors: Record<string, string> = {
+    open: '#3b82f6',        // Blue
+    assigned: '#eab308',    // Yellow
+    in_progress: '#f59e0b', // Amber/Orange
+    resolved: '#10b981',    // Emerald
+    closed: '#64748b',      // Slate
+    reopened: '#f43f5e'     // Rose
+  };
+
+  const statusLabels: Record<string, string> = {
+    open: 'Mới tạo',
+    assigned: 'Đã giao',
+    in_progress: 'Đang sửa',
+    resolved: 'Xong (Chờ duyệt)',
+    closed: 'Đã đóng',
+    reopened: 'Mở lại'
+  };
+
+  const handleMouseEnter = (e: React.MouseEvent, title: string, label: string, count: number) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left + 15;
+    const y = e.clientY - rect.top - 75;
+    setTooltip({
+      visible: true,
+      x,
+      y,
+      title,
+      label,
+      count
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!containerRef.current || !tooltip) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left + 15;
+    const y = e.clientY - rect.top - 75;
+    setTooltip(prev => prev ? { ...prev, x, y } : null);
+  };
+
+  const handleMouseLeave = () => {
+    setTooltip(null);
+  };
+
+  const getChartData = () => {
+    if (groupBy === 'status') {
+      const counts: Record<string, number> = {
+        open: 0,
+        assigned: 0,
+        in_progress: 0,
+        resolved: 0,
+        closed: 0,
+        reopened: 0
+      };
+      tickets.forEach(t => {
+        if (counts[t.status] !== undefined) {
+          counts[t.status]++;
+        }
+      });
+      return Object.keys(counts).map(key => ({
+        key,
+        name: statusLabels[key],
+        total: counts[key],
+        segments: [
+          { status: key, count: counts[key], color: statusColors[key] }
+        ]
+      }));
+    }
+
+    const groups: Record<string, Record<string, number>> = {};
+    
+    tickets.forEach(t => {
+      let groupKey = '';
+      if (groupBy === 'room') {
+        groupKey = t.room ? `Phòng ${t.room}` : 'Mặc định';
+      } else if (groupBy === 'requester') {
+        groupKey = t.requester_name || 'Không rõ';
+      } else if (groupBy === 'date') {
+        if (t.created_at) {
+          const dateObj = new Date(t.created_at);
+          groupKey = `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
+        } else {
+          groupKey = 'N/A';
+        }
+      }
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          open: 0,
+          assigned: 0,
+          in_progress: 0,
+          resolved: 0,
+          closed: 0,
+          reopened: 0
+        };
+      }
+      if (groups[groupKey][t.status] !== undefined) {
+        groups[groupKey][t.status]++;
+      }
+    });
+
+    let dataList = Object.entries(groups).map(([groupKey, statusCounts]) => {
+      const segments = Object.entries(statusCounts)
+        .filter(([_, count]) => count > 0)
+        .map(([statusKey, count]) => ({
+          status: statusKey,
+          count,
+          color: statusColors[statusKey]
+        }));
+      
+      const total = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+
+      return {
+        key: groupKey,
+        name: groupKey,
+        total,
+        segments
+      };
+    });
+
+    if (groupBy === 'date') {
+      dataList.sort((a, b) => {
+        const parseDate = (dStr: string) => {
+          const parts = dStr.split('/');
+          if (parts.length === 2) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            return month * 100 + day;
+          }
+          return 9999;
+        };
+        return parseDate(a.name) - parseDate(b.name);
+      });
+    } else {
+      dataList.sort((a, b) => b.total - a.total);
+    }
+
+    const maxGroups = 12;
+    if (dataList.length > maxGroups) {
+      const topGroups = dataList.slice(0, maxGroups - 1);
+      const otherGroups = dataList.slice(maxGroups - 1);
+      
+      const otherStatusCounts: Record<string, number> = {
+        open: 0,
+        assigned: 0,
+        in_progress: 0,
+        resolved: 0,
+        closed: 0,
+        reopened: 0
+      };
+      
+      otherGroups.forEach(g => {
+        g.segments.forEach(seg => {
+          otherStatusCounts[seg.status] += seg.count;
+        });
+      });
+
+      const otherSegments = Object.entries(otherStatusCounts)
+        .filter(([_, count]) => count > 0)
+        .map(([statusKey, count]) => ({
+          status: statusKey,
+          count,
+          color: statusColors[statusKey]
+        }));
+
+      const otherTotal = Object.values(otherStatusCounts).reduce((a, b) => a + b, 0);
+
+      topGroups.push({
+        key: 'other_groups',
+        name: 'Khác',
+        total: otherTotal,
+        segments: otherSegments
+      });
+
+      return topGroups;
+    }
+
+    return dataList;
+  };
 
   // Fetch locations for dropdown
   useEffect(() => {
@@ -350,6 +545,19 @@ export const Reports: React.FC = () => {
         {/* Action Buttons */}
         <div className="flex items-center space-x-3">
           <button
+            type="button"
+            onClick={() => setShowChart(!showChart)}
+            className={`flex items-center space-x-1.5 py-2 px-4 rounded-xl text-xs font-bold transition shadow-lg cursor-pointer ${
+              showChart 
+                ? 'bg-sky-500 text-white hover:bg-sky-600 shadow-sky-500/10' 
+                : 'bg-slate-800 text-slate-200 hover:bg-slate-700 shadow-slate-900/10 light:bg-slate-100 light:text-slate-700 light:hover:bg-slate-200 light:border light:border-slate-200'
+            }`}
+            title="Bật/Tắt hiển thị biểu đồ thống kê"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>{showChart ? 'Ẩn Biểu Đồ' : 'Xem Biểu Đồ'}</span>
+          </button>
+          <button
             onClick={handleExportExcel}
             className="flex items-center space-x-1.5 py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-lg shadow-emerald-600/10 cursor-pointer"
             title="Xuất dữ liệu hiện tại ra Excel"
@@ -504,6 +712,242 @@ export const Reports: React.FC = () => {
           </div>
         </form>
       </div>
+
+      {/* Chart Section */}
+      {showChart && (
+        <div className="bg-slate-900/40 light:bg-white border border-slate-800/80 light:border-slate-200 rounded-2xl p-5 shadow-xl transition-all duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-slate-850 light:border-slate-100 pb-4">
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5 text-sky-400" />
+              <h2 className="text-sm font-bold text-white light:text-slate-800">Biểu đồ phân tích ticket</h2>
+            </div>
+            
+            {/* Group By Filter Tabs */}
+            <div className="flex bg-slate-950/60 light:bg-slate-100 p-1 rounded-xl border border-slate-850 light:border-slate-200">
+              <button
+                type="button"
+                onClick={() => setGroupBy('status')}
+                className={`py-1 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  groupBy === 'status'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 light:text-slate-600 light:hover:text-slate-800'
+                }`}
+              >
+                Trạng thái
+              </button>
+              <button
+                type="button"
+                onClick={() => setGroupBy('room')}
+                className={`py-1 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  groupBy === 'room'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 light:text-slate-600 light:hover:text-slate-800'
+                }`}
+              >
+                Phòng
+              </button>
+              <button
+                type="button"
+                onClick={() => setGroupBy('requester')}
+                className={`py-1 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  groupBy === 'requester'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 light:text-slate-600 light:hover:text-slate-800'
+                }`}
+              >
+                Người yêu cầu
+              </button>
+              <button
+                type="button"
+                onClick={() => setGroupBy('date')}
+                className={`py-1 px-3 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  groupBy === 'date'
+                    ? 'bg-sky-500 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 light:text-slate-600 light:hover:text-slate-800'
+                }`}
+              >
+                Ngày tạo
+              </button>
+            </div>
+          </div>
+
+          {tickets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center min-h-[220px] text-slate-500 border border-dashed border-slate-800 light:border-slate-200 rounded-xl">
+              <BarChart3 className="w-8 h-8 text-slate-600 mb-2 animate-pulse" />
+              <span className="text-xs">Không có dữ liệu ticket để vẽ biểu đồ.</span>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Chart Draw Container */}
+              <div 
+                ref={containerRef} 
+                className="relative bg-slate-950/40 light:bg-slate-50 border border-slate-850 light:border-slate-200 rounded-xl p-4 overflow-x-auto"
+              >
+                {/* Tooltip */}
+                {tooltip && tooltip.visible && (
+                  <div 
+                    className="absolute z-50 pointer-events-none bg-slate-900/95 light:bg-white border border-slate-800 light:border-slate-200 shadow-xl rounded-xl p-3 text-xs text-slate-200 light:text-slate-850 backdrop-blur-md flex flex-col gap-1 transition-all duration-75 min-w-[150px]"
+                    style={{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }}
+                  >
+                    <div className="font-bold border-b border-slate-800 light:border-slate-100 pb-1 text-slate-200 light:text-slate-900 truncate">
+                      {tooltip.title}
+                    </div>
+                    <div className="flex items-center space-x-2 mt-1.5">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: statusColors[tooltip.label] }}></span>
+                      <span className="font-semibold text-slate-300 light:text-slate-700">{statusLabels[tooltip.label]}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 light:text-slate-500 mt-1 pl-4">
+                      Số lượng: <span className="text-white light:text-slate-900 font-bold">{tooltip.count} ticket</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* SVG Render */}
+                {(() => {
+                  const chartData = getChartData();
+                  const maxTotal = Math.max(...chartData.map(d => d.total), 0) || 1;
+                  
+                  // Setup dimensions
+                  const svgWidth = Math.max(800, chartData.length * 75);
+                  const svgHeight = 280;
+                  const paddingLeft = 50;
+                  const paddingRight = 20;
+                  const paddingTop = 30;
+                  const paddingBottom = 40;
+                  const plotWidth = svgWidth - paddingLeft - paddingRight;
+                  const plotHeight = svgHeight - paddingTop - paddingBottom;
+                  const colWidth = plotWidth / chartData.length;
+                  const barSpacing = 20;
+                  const barWidth = Math.max(16, colWidth - barSpacing);
+
+                  // Setup Y-axis ticks
+                  const ticksCount = 4;
+                  const yTicks = Array.from({ length: ticksCount + 1 }, (_, i) => {
+                    return Math.round((maxTotal / ticksCount) * i);
+                  });
+
+                  return (
+                    <svg 
+                      width={svgWidth} 
+                      height={svgHeight} 
+                      className="mx-auto block select-none overflow-visible"
+                    >
+                      {/* Grid Lines & Y Ticks */}
+                      {yTicks.map((tickVal, idx) => {
+                        const yRatio = tickVal / maxTotal;
+                        const yPos = paddingTop + plotHeight * (1 - yRatio);
+                        return (
+                          <g key={idx}>
+                            <line 
+                              x1={paddingLeft} 
+                              y1={yPos} 
+                              x2={svgWidth - paddingRight} 
+                              y2={yPos} 
+                              stroke="currentColor" 
+                              className="text-slate-800/80 light:text-slate-200/80" 
+                              strokeDasharray="4 4"
+                              strokeWidth="1"
+                            />
+                            <text 
+                              x={paddingLeft - 10} 
+                              y={yPos + 4} 
+                              textAnchor="end" 
+                              className="fill-slate-500 text-[10px] font-mono"
+                            >
+                              {tickVal}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {/* X-axis base line */}
+                      <line 
+                        x1={paddingLeft} 
+                        y1={paddingTop + plotHeight} 
+                        x2={svgWidth - paddingRight} 
+                        y2={paddingTop + plotHeight} 
+                        stroke="currentColor" 
+                        className="text-slate-800 light:text-slate-350"
+                        strokeWidth="1.5"
+                      />
+
+                      {/* Columns */}
+                      {chartData.map((item, idx) => {
+                        const barX = paddingLeft + idx * colWidth + (colWidth - barWidth) / 2;
+                        let currentY = paddingTop + plotHeight;
+                        
+                        return (
+                          <g key={item.key}>
+                            {/* Stacked rects */}
+                            {item.segments.map((seg) => {
+                              const segHeight = (seg.count / maxTotal) * plotHeight;
+                              const rectY = currentY - segHeight;
+                              const rectHeight = segHeight;
+                              
+                              // Update currentY for next segment stack
+                              currentY -= segHeight;
+                              
+                              if (rectHeight <= 0) return null;
+
+                              return (
+                                <rect
+                                  key={seg.status}
+                                  x={barX}
+                                  y={rectY}
+                                  width={barWidth}
+                                  height={rectHeight}
+                                  fill={seg.color}
+                                  rx={2}
+                                  className="transition-all duration-150 cursor-pointer hover:brightness-110"
+                                  onMouseEnter={(e) => handleMouseEnter(e, item.name, seg.status, seg.count)}
+                                  onMouseMove={handleMouseMove}
+                                  onMouseLeave={handleMouseLeave}
+                                />
+                              );
+                            })}
+
+                            {/* Total Label above bar */}
+                            {item.total > 0 && (
+                              <text
+                                x={barX + barWidth / 2}
+                                y={currentY - 6}
+                                textAnchor="middle"
+                                className="fill-slate-400 light:fill-slate-600 text-[10px] font-bold"
+                              >
+                                {item.total}
+                              </text>
+                            )}
+
+                            {/* X-axis labels */}
+                            <text
+                              x={barX + barWidth / 2}
+                              y={paddingTop + plotHeight + 18}
+                              textAnchor="middle"
+                              className="fill-slate-450 light:fill-slate-600 text-[10px] font-semibold"
+                            >
+                              {item.name.length > 12 ? `${item.name.slice(0, 10)}...` : item.name}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  );
+                })()}
+              </div>
+
+              {/* Legend */}
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-slate-850 light:border-slate-100 pt-4 text-xs font-semibold text-slate-400">
+                {Object.entries(statusLabels).map(([statusKey, label]) => (
+                  <div key={statusKey} className="flex items-center space-x-1.5">
+                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: statusColors[statusKey] }}></span>
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main Table View */}
       {error && (
